@@ -1,3 +1,6 @@
+SUBDIRS = test-runner
+test_runner_dir = $(top_builddir)/tests/test-runner
+
 TESTS =						\
 	array-test				\
 	client-test				\
@@ -21,38 +24,37 @@ check_PROGRAMS =				\
 noinst_PROGRAMS =				\
 	fixed-benchmark
 
-test_runner_src = test-runner.c test-runner.h test-helpers.c
-
-array_test_SOURCES = array-test.c $(test_runner_src)
-client_test_SOURCES = client-test.c $(test_runner_src)
-display_test_SOURCES = display-test.c $(test_runner_src)
-connection_test_SOURCES = connection-test.c $(test_runner_src)
-event_loop_test_SOURCES = event-loop-test.c $(test_runner_src)
-fixed_test_SOURCES = fixed-test.c $(test_runner_src)
-list_test_SOURCES = list-test.c $(test_runner_src)
-map_test_SOURCES = map-test.c $(test_runner_src)
-sanity_test_SOURCES = sanity-test.c $(test_runner_src)
-socket_test_SOURCES = socket-test.c $(test_runner_src)
-queue_test_SOURCES = queue-test.c $(test_runner_src)
-signal_test_SOURCES = signal-test.c $(test_runner_src)
-resources_test_SOURCES = resources-test.c $(test_runner_src)
+array_test_SOURCES = array-test.c
+client_test_SOURCES = client-test.c
+display_test_SOURCES = display-test.c
+connection_test_SOURCES = connection-test.c
+event_loop_test_SOURCES = event-loop-test.c
+fixed_test_SOURCES = fixed-test.c
+list_test_SOURCES = list-test.c
+map_test_SOURCES = map-test.c
+sanity_test_SOURCES = sanity-test.c
+socket_test_SOURCES = socket-test.c
+queue_test_SOURCES = queue-test.c
+signal_test_SOURCES = signal-test.c
+resources_test_SOURCES = resources-test.c
 
 fixed_benchmark_SOURCES = fixed-benchmark.c
 
 os_wrappers_test_SOURCES = 			\
 	os-wrappers-test.c			\
-	../src/wayland-os.c			\
-	$(test_runner_src)
+	../src/wayland-os.c
 
-AM_CPPFLAGS = -I$(top_builddir)/src -I$(top_srcdir)/src
+AM_CPPFLAGS =					\
+	-I$(top_builddir)/src			\
+	-I$(top_srcdir)/src			\
+	-I$(test_runner_dir)
 AM_CFLAGS = $(GCC_CFLAGS) $(FFI_CFLAGS)
 LDADD = $(top_builddir)/src/libwayland-util.la \
 	$(top_builddir)/src/libwayland-client.la \
 	$(top_builddir)/src/libwayland-server.la \
+	$(test_runner_dir)/libtest-runner.la
 	-lrt -ldl $(FFI_LIBS)
 
 exec_fd_leak_checker_SOURCES =			\
-	exec-fd-leak-checker.c			\
-	test-runner.h				\
-	test-helpers.c
-exec_fd_leak_checker_LDADD =
+	exec-fd-leak-checker.c
+exec_fd_leak_checker_LDADD = $(test_runner_dir)/libtest-helpers.la
