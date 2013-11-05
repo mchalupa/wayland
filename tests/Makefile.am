@@ -1,6 +1,11 @@
 SUBDIRS = test-runner test-compositor
+
 test_runner_dir = $(top_builddir)/tests/test-runner
 test_compositor_dir = $(top_builddir)/tests/test-compositor
+
+test_compositor_ldadd =				\
+	$(test_compositor_dir)/libtc-server.la	\
+	$(test_compositor_dir)/libtc-client.la
 
 TESTS =						\
 	array-test				\
@@ -51,10 +56,11 @@ AM_CPPFLAGS =					\
 	-I$(test_runner_dir)			\
 	-I$(test_compositor_dir)
 AM_CFLAGS = $(GCC_CFLAGS) $(FFI_CFLAGS)
-LDADD = $(top_builddir)/src/libwayland-util.la \
-	$(top_builddir)/src/libwayland-client.la \
-	$(top_builddir)/src/libwayland-server.la \
-	$(test_runner_dir)/libtest-runner.la
+LDADD = $(top_builddir)/src/libwayland-util.la		\
+	$(top_builddir)/src/libwayland-client.la 	\
+	$(top_builddir)/src/libwayland-server.la 	\
+	$(test_runner_dir)/libtest-runner.la		\
+	$(test_compositor_ldadd)
 	-lrt -ldl $(FFI_LIBS)
 
 exec_fd_leak_checker_SOURCES =			\
