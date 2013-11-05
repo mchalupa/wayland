@@ -1,0 +1,49 @@
+====================================
+Writing tests using test compositor
+====================================
+
+The tests have exactly the same form as in usual wayland test:
+TEST(test_name)
+{
+	// test code
+}
+
+For creating a client in the test the client's main function has to be defined.
+For this function is created another subprocess. This gives us this scheme:
+
+		     make check
+		         ||
+                    test-runner
+		   /     |     \
+	       test1   test2   test3
+		  |      |       |
+	      client1 client2  client3
+
+It can be seen that the tests can run parallely (make check -j).
+The client's main function has prototype:
+
+  int client_main(int socket)
+
+It should return 0 on success, non-0 else. The socket is the socket used for
+communication between test and the client subprocess (not the wayland socket!)
+and is passed to client_populate() or client_init() functions.
+Otherwise the socket should be ignored.
+
+The simplest way how to write a test with a client is:
+
+  /* define client's main function */
+  int client_main(int sock)
+  {
+	// client's code
+  }
+
+  TEST(test_name)
+  {
+	struct display *d
+			= display_create_and_run(NULL, client_main);
+	display_destroy(d);
+  }
+
+Documentation of functions which can be used by the client's main function
+and by the display process (the TEST() one) is in the header files (mainly in
+tc-server.h and tc-client.h)
