@@ -1,5 +1,6 @@
 SUBDIRS = test-runner test-compositor
 test_runner_dir = $(top_builddir)/tests/test-runner
+test_compositor_dir = $(top_builddir)/tests/test-compositor
 
 TESTS =						\
 	array-test				\
@@ -47,7 +48,8 @@ os_wrappers_test_SOURCES = 			\
 AM_CPPFLAGS =					\
 	-I$(top_builddir)/src			\
 	-I$(top_srcdir)/src			\
-	-I$(test_runner_dir)
+	-I$(test_runner_dir)			\
+	-I$(test_compositor_dir)
 AM_CFLAGS = $(GCC_CFLAGS) $(FFI_CFLAGS)
 LDADD = $(top_builddir)/src/libwayland-util.la \
 	$(top_builddir)/src/libwayland-client.la \
