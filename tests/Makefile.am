@@ -21,7 +21,8 @@ TESTS =						\
 	socket-test				\
 	queue-test				\
 	signal-test				\
-	resources-test
+	resources-test				\
+	wl_shm-test
 
 check_PROGRAMS =				\
 	$(TESTS)				\
@@ -43,6 +44,7 @@ socket_test_SOURCES = socket-test.c
 queue_test_SOURCES = queue-test.c
 signal_test_SOURCES = signal-test.c
 resources_test_SOURCES = resources-test.c
+wl_shm_test_SOURCES = wl_shm-test.c
 
 fixed_benchmark_SOURCES = fixed-benchmark.c
 
