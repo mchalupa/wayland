@@ -147,5 +147,6 @@ AC_CONFIG_FILES([Makefile
 		 src/wayland-version.h
 		 protocol/Makefile
 		 tests/Makefile
-		 tests/test-runner/Makefile])
+		 tests/test-runner/Makefile
+		 tests/test-compositor/Makefile])
 AC_OUTPUT

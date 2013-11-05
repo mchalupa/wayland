@@ -1,4 +1,4 @@
-SUBDIRS = test-runner
+SUBDIRS = test-runner test-compositor
 test_runner_dir = $(top_builddir)/tests/test-runner
 
 TESTS =						\
