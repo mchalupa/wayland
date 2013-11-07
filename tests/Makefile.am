@@ -23,7 +23,8 @@ TESTS =						\
 	signal-test				\
 	resources-test				\
 	wl_shm-test				\
-	wl_proxy-test
+	wl_proxy-test				\
+	wl_global-test
 
 check_PROGRAMS =				\
 	$(TESTS)				\
@@ -47,6 +48,7 @@ signal_test_SOURCES = signal-test.c
 resources_test_SOURCES = resources-test.c
 wl_shm_test_SOURCES = wl_shm-test.c
 wl_proxy_test_SOURCES = wl_proxy-test.c
+wl_global_test_SOURCES = wl_global-test.c
 
 fixed_benchmark_SOURCES = fixed-benchmark.c
 
