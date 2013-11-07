@@ -1,0 +1,105 @@
+#!/bin/sh
+
+# Copyright © 2013 Red Hat, Inc.
+#
+# Permission to use, copy, modify, distribute, and sell this software and its
+# documentation for any purpose is hereby granted without fee, provided that
+# the above copyright notice appear in all copies and that both that copyright
+# notice and this permission notice appear in supporting documentation, and
+# that the name of the copyright holders not be used in advertising or
+# publicity pertaining to distribution of the software without specific,
+# written prior permission.  The copyright holders make no representations
+# about the suitability of this software for any purpose.  It is provided "as
+# is" without express or implied warranty.
+#
+# THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+# INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
+# EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
+# DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE
+# OF THIS SOFTWARE.
+
+FILE=
+USER_COLOR=
+PATTERN=
+
+RED="\033[1;31m"
+REDB="\033[1;41m"
+GREEN="\033[0;32m"
+GREENB="\033[1;42m"
+GRAY="\033[0;37m"
+YELLOW="\033[1;33m"
+END="\033[m"
+
+tput colors >/dev/null;
+if [ "$?" != "0" ]; then
+	echo "Your terminal probably doesn't support colors." > /dev/stderr
+
+	echo "Continue? [no = n|yes = any other key] "
+	read TMP
+	if [ "$TMP" = "n" -o "$TMP" = "no" ]; then
+		exit -1;
+	fi
+fi
+
+# set input file
+if [ -z "$1" -o "$1" = "-" ]; then
+	FILE=/dev/stdin
+else
+	if [ -f "$1" ]; then
+		FILE="$1"
+	# suppose script is run from tests/ directory
+	elif [ -f "$1.log" ]; then
+		FILE="$1.log"
+	elif [ -f "$1-test.log" ]; then
+		FILE="$1-test.log"
+	elif [ -f "$1" ]; then # this is after .log because of binaries
+		FILE="$1"
+	else
+		echo "Couldn't find file $1" > /dev/stderr
+		exit -1
+	fi
+fi
+
+# set pattern and color
+if [ -n "$2" ]; then
+	PATTERN="$2"
+
+	if [ -n "$3" ]; then
+		USER_COLOR="$3"
+	else
+		USER_COLOR="$YELLOW"
+	fi
+fi
+
+IFS='\n'
+cat "$FILE" | while read LINE; do
+	# USER'S PATTERN
+	if [ -n "$PATTERN" ]; then
+		if echo "$LINE" | grep -q -i "$PATTERN"; then
+			echo -e "${USER_COLOR}${LINE}${END}"
+			continue
+		fi
+	fi
+
+	# STATUS MESSAEGES
+	if echo "$LINE" | grep -q -E '^test.*fail\.' ; then
+		echo -e "${REDB}${LINE}${END}"
+	# ERRORS
+	elif echo "$LINE" | grep -q -i 'error\|fail\|assert'; then
+		echo -e "${RED}${LINE}${END}"
+
+	# DEBUG MESSAEGES
+	elif echo "$LINE" | grep -q -E '\[[0-9]+\s+\|.*\]' ; then
+		echo -e "${GREEN}${LINE}${END}"
+
+	# WAYLAND DEBUG MESSAEGES
+	elif echo "$LINE" | grep -q -E '\[[0-9]+\.[0-9]+]' ; then
+		echo -e "${GRAY}${LINE}${END}"
+
+	# NORMAL PRINTING
+	else
+		echo -e "${LINE}"
+	fi
+done
