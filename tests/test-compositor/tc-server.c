@@ -30,6 +30,7 @@
 #include <wait.h>
 #include <sys/time.h>
 #include <time.h>
+#include <err.h>
 
 #include "wayland-server.h"
 
@@ -59,16 +60,36 @@ handle_sigchld(int signum, void *data)
 		"Got other signal than SIGCHLD from loop\n");
 	assertf(data, "Got SIGCHLD with NULL data\n");
 
-	int status, stat;
+	int stat;
+	siginfo_t info = {.si_pid = 0};
 	struct display *disp = data;
 
 	wl_display_terminate(disp->wl_display);
 	dbg("Display terminated\n--\n");
 
-	stat = waitpid(disp->client_pid, &status, WNOHANG);
-	assertf(stat != -1, "Waiting for child failed");
+	stat = waitid(P_ALL, 0, &info, WEXITED | WNOHANG);
+	if (stat != 0)
+		err(EXIT_FAILURE, "Waiting for child failed");
+	else /* check WNOHANG */
+		assertf(info.si_pid != 0, "No child to wait for");
 
-	disp->client_exit_code = WEXITSTATUS(status);
+	/* Write info */
+	switch(info.si_code) {
+		case CLD_EXITED:
+			break;
+		case CLD_DUMPED:
+			dbg("Core dumped\n");
+		case CLD_KILLED:
+			dbg("Client terminated with error (exit status: %u)\n",
+			     info.si_status);
+			break;
+		default:
+			dbg("Catched bad signal (si_status: %u, si_code: %u)\n",
+			    info.si_status, info.si_code);
+			assert(0 && "Catched bad sigchild");
+	}
+
+	disp->client_exit_code = info.si_status;
 	return 0;
 }
 
