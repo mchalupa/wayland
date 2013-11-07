@@ -25,7 +25,8 @@ TESTS =						\
 	wl_shm-test				\
 	wl_proxy-test				\
 	wl_global-test				\
-	test-compositor-test
+	test-compositor-test			\
+	tc-events-test
 
 check_PROGRAMS =				\
 	$(TESTS)				\
@@ -51,6 +52,7 @@ wl_shm_test_SOURCES = wl_shm-test.c
 wl_proxy_test_SOURCES = wl_proxy-test.c
 wl_global_test_SOURCES = wl_global-test.c
 test_compositor_test_SOURCES = test-compositor-test.c
+tc_events_test_SOURCES = tc-events-test.c
 
 fixed_benchmark_SOURCES = fixed-benchmark.c
 
