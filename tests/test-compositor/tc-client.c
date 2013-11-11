@@ -46,6 +46,12 @@ client_init(struct client *c, int s)
 	assertf(c->display, "Couldn't connect to display");
 }
 
+inline void
+client_deinit(struct client *c)
+{
+	wl_display_disconnect(c->display);
+}
+
 /*
  * Allow comfortably add listener into client structure
  * XXX Do it somehow else.. or let user manually add listeners

@@ -76,6 +76,17 @@ void
 client_init(struct client *c, int s);
 
 /**
+ * Free resources allocated by client_init.
+ *
+ * For client_populate() should be called client_free(). For client_init()
+ * should be called client_deinit()
+ *
+ * @param c   client struct
+ */
+void
+client_deinit(struct client *c);
+
+/**
  * Create and populate structure client.
  *
  * Default listeners are used and this function blocks until display
