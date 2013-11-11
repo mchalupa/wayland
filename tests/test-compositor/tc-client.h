@@ -181,6 +181,20 @@ void
 client_send_data(struct client *cl, void *src, size_t size);
 
 /**
+ * Get data from the display.
+ *
+ * This is the answer to display_send_data(); Data will be saved
+ * into src and the memory will be automatically allocated. The size of
+ * data will be saved into size;
+ *
+ * @param cl      client structure
+ * @param src     where to store data
+ * @param size    where to store the size of data
+ * */
+void
+client_recieve_data(struct client *cl, void **src, size_t *size);
+
+/**
  * Send eventarray to the display
  *
  * Display must call display_recieve_eventarray() to accept this request.

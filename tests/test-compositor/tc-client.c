@@ -301,6 +301,37 @@ client_send_data(struct client *cl, void *src, size_t size)
 		" (%lu and %lu)", size, got_size);
 }
 
+void
+client_recieve_data(struct client *cl, void **src, size_t *size)
+{
+	assert(cl && src);
+	dbg("Recieving data from display\n");
+
+	size_t count;
+	enum optype op;
+
+	/* The display is in wl_display_run() cycle. Kick it to
+	 * break from the cycle and let it send the data to client */
+	kick_display(cl);
+
+	/* send_message is used, so the first data is optype */
+	aread(cl->sock, &op, sizeof(enum optype));
+	assertf(op == SEND_BYTES,
+		"Wrong operation, expected SEND_BYTES but got [%d]", op);
+
+	aread(cl->sock, &count, sizeof(size_t));
+	if (size)
+		*size = count;
+
+	*src = malloc(count);
+	assert(src && "Out of memory");
+
+	aread(cl->sock, *src, count);
+
+	/* acknowledge */
+	awrite(cl->sock, &count, sizeof(size_t));
+}
+
 int
 client_ask_for_events(struct client *cl, int n)
 {

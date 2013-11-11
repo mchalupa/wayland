@@ -250,4 +250,16 @@ display_process_request(struct display *d);
 void
 display_recieve_eventarray(struct display *d);
 
+/**
+ * Send data to client.
+ *
+ * It's wrapper around send_message function
+ *
+ * @param d    display's struct
+ * @param src  pointer to the data being send
+ * @param size size of the data being send
+ */
+void
+display_send_data(struct display *d, void *src, size_t size);
+
 #endif /* __WIT_SERVER_H__ */

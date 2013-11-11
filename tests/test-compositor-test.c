@@ -302,10 +302,20 @@ static int
 test_operations_main(int sock)
 {
 	struct client *c = client_populate(sock);
-
 	char str[] = "I'm bytestream";
+	size_t size;
+
 	client_send_data(c, &str, sizeof(str));
 
+	char *dstr = malloc(sizeof(str));
+	client_recieve_data(c, &dstr, &size);
+	assertf(strcmp(str, dstr) == 0,
+		"Recieved string differs from original string: '%s' != '%s'",
+		str, dstr);
+	assertf(size == sizeof(str), "Got wrong size\n");
+
+	wl_display_roundtrip(c->display);
+	free(dstr);
 	client_free(c);
 	return EXIT_SUCCESS;
 }
@@ -319,8 +329,9 @@ TEST(test_operations_tst)
 	display_run(d);
 
 	display_recieve_data(d);
-
 	assert(strcmp(d->data, "I'm bytestream") == 0);
+
+	display_send_data(d, d->data, strlen(d->data) + 1);
 
 	display_destroy(d);
 }

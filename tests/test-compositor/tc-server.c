@@ -487,6 +487,25 @@ display_add_user_func(struct display *disp,
 }
 
 void
+display_send_data(struct display *d, void *src, size_t size)
+{
+	assert(d && src && size);
+	dbg("Sending data to client\n");
+
+	size_t count;
+
+	send_message(d->client_sock[1], SEND_BYTES, src, size);
+
+	/* acknowledge */
+	aread(d->client_sock[1], &count, sizeof(size_t));
+	assertf(count == size, "Client recieved wrong number of bytes\n");
+
+	/* The display has been interrupted from wl_display_cycle.
+	 * Return it it previous state */
+	wl_display_run(d->wl_display);
+}
+
+void
 display_add_events(struct display *d, struct eventarray *e)
 {
 	assert(d);
