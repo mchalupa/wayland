@@ -27,7 +27,8 @@ TESTS =						\
 	wl_global-test				\
 	test-compositor-test			\
 	tc-events-test				\
-	wl_registry-test
+	wl_registry-test			\
+	wl_display-test
 
 check_PROGRAMS =				\
 	$(TESTS)				\
@@ -55,6 +56,7 @@ wl_global_test_SOURCES = wl_global-test.c
 test_compositor_test_SOURCES = test-compositor-test.c
 tc_events_test_SOURCES = tc-events-test.c
 wl_registry_test_SOURCES = wl_registry-test.c
+wl_display_test_SOURCES = wl_display-test.c
 
 fixed_benchmark_SOURCES = fixed-benchmark.c
 
