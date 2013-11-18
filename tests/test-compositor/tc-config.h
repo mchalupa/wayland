@@ -41,4 +41,8 @@ enum {
 	CONF_ALL 	= ~((uint32_t) 0)
 };
 
+/* This is not the same as default config. This configuration says that
+ * no objects nor resources should be created */
+const struct config zero_config;
+
 #endif /* __TC_CONFIG_H__ */

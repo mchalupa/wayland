@@ -220,8 +220,7 @@ global_main(int s)
 TEST(global_tst)
 {
 	struct wl_global *g;
-	struct config conf = {0,0,0};
-	struct display *d = display_create(&conf);
+	struct display *d = display_create(&zero_config);
 	display_create_client(d, global_main);
 	display_run(d);
 

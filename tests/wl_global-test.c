@@ -110,9 +110,7 @@ TEST(create_more_same_singletons_tst)
 	struct wl_global *g1, *g2;
 
 	/* create only display */
-	struct config conf = {0, 0, 0};
-
-	struct display *d = display_create(&conf);
+	struct display *d = display_create(&zero_config);
 	display_create_client(d, create_more_same_singletons_main);
 	display_run(d);
 
@@ -139,9 +137,8 @@ TEST(create_more_same_singletons_tst)
 
 TEST(create_wrong_version_global_tst)
 {
-	struct config conf = {0, 0, 0};
 	struct wl_global *g;
-	struct display *d = display_create(&conf);
+	struct display *d = display_create(&zero_config);
 
 	g = wl_global_create(d->wl_display, &wl_compositor_interface,
 			      wl_compositor_interface.version + 1, NULL, NULL);

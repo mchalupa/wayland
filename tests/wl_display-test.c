@@ -29,8 +29,6 @@
 #include "test-runner.h"
 #include "test-compositor.h"
 
-static const struct config zero_conf = {0,0,0};
-
 /* -----------------------------------------------------------------------------
     Callback listener
    -------------------------------------------------------------------------- */
@@ -85,8 +83,7 @@ callback_main(int s)
 TEST(callback_tst)
 {
 	uint32_t serial;
-	struct config conf = {0,0,0};
-	struct display *d = display_create_and_run(&conf, callback_main);
+	struct display *d = display_create_and_run(&zero_config, callback_main);
 
 	serial = wl_display_get_serial(d->wl_display);
 	display_send_data(d, &serial, sizeof serial);
@@ -114,7 +111,7 @@ get_registry_main(int s)
 
 TEST(get_registry_tst)
 {
-	display_destroy(display_create_and_run(&zero_conf, get_registry_main));
+	display_destroy(display_create_and_run(&zero_config, get_registry_main));
 }
 
 /**

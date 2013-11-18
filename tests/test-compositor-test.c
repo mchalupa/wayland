@@ -275,8 +275,7 @@ add_listener_main(int sock)
 TEST(add_listener_tst)
 {
 	/* don't create resources, otherwise we'll get SIGSEGV */
-	struct config conf = {0, 0, 0};
-	struct display *d = display_create(&conf);
+	struct display *d = display_create(&zero_config);
 	display_create_client(d, add_listener_main);
 
 	display_run(d);
@@ -322,8 +321,7 @@ test_operations_main(int sock)
 
 TEST(test_operations_tst)
 {
-	struct config conf = {0, 0, 0};
-	struct display *d = display_create(&conf);
+	struct display *d = display_create(&zero_config);
 	display_create_client(d, test_operations_main);
 
 	display_run(d);

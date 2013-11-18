@@ -6,7 +6,7 @@ noinst_LTLIBRARIES =	\
 wayland_src = $(top_srcdir)/src
 
 libtc_utils_la_LIBADD =
-libtc_utils_la_SOURCES = tc-utils.c
+libtc_utils_la_SOURCES = tc-utils.c tc-config.c
 
 libtc_server_la_LIBADD =
 	libtc-utils.la				\

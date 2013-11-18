@@ -267,8 +267,7 @@ TEST(ea_add_dynamic)
 	ea = eventarray_create();
 
 	/* I need a proxy for keyboard enter */
-	struct config conf = {0,0,0};
-	struct display *d = display_create(&conf);
+	struct display *d = display_create(&zero_config);
 
 	struct wl_array a;
 	wl_array_init(&a);
