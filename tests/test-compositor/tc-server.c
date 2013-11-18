@@ -255,7 +255,7 @@ get_socket_name(void)
 }
 
 struct display *
-display_create(struct config *conf)
+display_create(const struct config *conf)
 {
 	struct display *d = NULL;
 	const char *socket_name;
@@ -310,7 +310,7 @@ display_create(struct config *conf)
 }
 
 inline struct display *
-display_create_and_run(struct config *conf,
+display_create_and_run(const struct config *conf,
 			   int (*client_main)(int))
 {
 	struct display *d = display_create(conf);

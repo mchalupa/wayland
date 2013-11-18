@@ -86,7 +86,7 @@ struct display {
  * @return        filled struct display
  */
 struct display *
-display_create(struct config *conf);
+display_create(const struct config *conf);
 
 /**
  * Create display with client and run display
@@ -101,7 +101,7 @@ display_create(struct config *conf);
  * @return             display
  */
 struct display *
-display_create_and_run(struct config *conf,
+display_create_and_run(const struct config *conf,
 			   int (*client_main)(int));
 
 /**
