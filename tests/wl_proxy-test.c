@@ -389,6 +389,65 @@ proxy_create_main(int sock)
 	return EXIT_SUCCESS;
 }
 
+/*
+ * Test:
+ * http://lists.freedesktop.org/archives/wayland-devel/2013-November/012090.html
+ */
+static int
+proxy_create_concurrently(int sock)
+{
+	assert(sock >= 0);
+	struct wl_display *d = wl_display_connect(NULL);
+	assert(d);
+
+	struct wl_proxy *p1, *p2, *p3, *p4;
+/*
+	---
+	This way fails, so the new way was introduced
+	---
+
+	p1 = wl_proxy_create((struct wl_proxy *) d,
+			     &wl_registry_interface);
+	assert(p1);
+
+	p2 = wl_proxy_create((struct wl_proxy *) d,
+			      &wl_dummy_interface);
+	assert(p2);
+
+	wl_proxy_marshal((struct wl_proxy *) d,
+			 WL_DISPLAY_GET_REGISTRY, p2);
+	wl_proxy_marshal((struct wl_proxy *) d,
+			 WL_DISPLAY_GET_REGISTRY, p1);
+*/
+
+	p1 = wl_proxy_marshal_constructor((struct wl_proxy *) d,
+			 WL_DISPLAY_GET_REGISTRY, &wl_registry_interface);
+	p2 = wl_proxy_marshal_constructor((struct wl_proxy *) d,
+			 WL_DISPLAY_GET_REGISTRY, &wl_registry_interface);
+	p3 = wl_proxy_marshal_constructor((struct wl_proxy *) d,
+			 WL_DISPLAY_GET_REGISTRY, &wl_registry_interface);
+	p4 = wl_proxy_marshal_constructor((struct wl_proxy *) d,
+			 WL_DISPLAY_GET_REGISTRY, &wl_registry_interface);
+
+	wl_display_flush(d);
+	wl_display_roundtrip(d);
+	if (wl_display_get_error(d) != 0)
+		return EXIT_FAILURE;
+
+	wl_proxy_destroy(p1);
+	wl_proxy_destroy(p2);
+	wl_proxy_destroy(p3);
+	wl_proxy_destroy(p4);
+
+	return EXIT_SUCCESS;
+}
+
+TEST(proxy_create_concurrently_tst)
+{
+	display_destroy(display_create_and_run(&zero_config,
+					       proxy_create_concurrently));
+}
+
 TEST(create_setget)
 {
 	struct display *d = display_create_and_run(NULL, proxy_create_main);
