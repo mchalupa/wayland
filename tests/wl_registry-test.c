@@ -122,18 +122,6 @@ global_remove_main(int s)
 	assertf(destroyed == 1,
 		"Global destroy method haven't been called");
 
-	/*
-	 * DOC: The object remains valid and requests to the object will be
-	 * ignored until the client destroys it, to avoid races between the
-	 * global going away and a client sending a request to it.
-	 * See mailing list:
-	 * http://lists.freedesktop.org/archives/wayland-devel/2013-October/011573.html
-	 */
-	struct wl_touch *touch;
-	touch = wl_seat_get_touch((struct wl_seat *) c.seat.proxy);
-	assertf(touch == NULL,
-		"Seat was already deleted, but requeset has not been ignored");
-
 	/* try to get the globals again and check if seat's not there
 	 * (handle_global method with seat interface would abort) */
 	wl_registry_destroy((struct wl_registry *) c.registry.proxy);
