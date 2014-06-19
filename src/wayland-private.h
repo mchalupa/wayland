@@ -34,9 +34,19 @@
 /* allow test private functions */
 #ifdef UNIT_TESTS
 #define WL_PRIVATE WL_EXPORT
+
+/* if UNIT_TESTS is not defined, then this structure
+ * and MASK macro are in connection.c */
+struct wl_buffer {
+	char data[4096];
+	uint32_t head, tail;
+};
+
+#define MASK(i) ((i) & 4095)
+
 #else
 #define WL_PRIVATE static
-#endif
+#endif /* UNIT_TESTS */
 
 #define ARRAY_LENGTH(a) (sizeof (a) / sizeof (a)[0])
 

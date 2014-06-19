@@ -44,12 +44,16 @@
 
 #define DIV_ROUNDUP(n, a) ( ((n) + ((a) - 1)) / (a) )
 
+/* if UNIT_TESTS is defined, then this structure
+ * and MASK macro are in wayland-private.h */
+#ifndef UNIT_TESTS
 struct wl_buffer {
 	char data[4096];
 	uint32_t head, tail;
 };
 
 #define MASK(i) ((i) & 4095)
+#endif /* UNIT_TESTS */
 
 #define MAX_FDS_OUT	28
 #define CLEN		(CMSG_LEN(MAX_FDS_OUT * sizeof(int32_t)))
