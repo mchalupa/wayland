@@ -31,6 +31,13 @@
 
 #include "wayland-util.h"
 
+/* allow test private functions */
+#ifdef UNIT_TESTS
+#define WL_PRIVATE WL_EXPORT
+#else
+#define WL_PRIVATE static
+#endif
+
 #define ARRAY_LENGTH(a) (sizeof (a) / sizeof (a)[0])
 
 #define container_of(ptr, type, member) ({				\

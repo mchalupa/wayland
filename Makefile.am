@@ -137,14 +137,27 @@ check_PROGRAMS =				\
 noinst_PROGRAMS =				\
 	fixed-benchmark
 
-check_LTLIBRARIES = libtest-runner.la
+check_LTLIBRARIES = 				\
+	libtest-runner.la			\
+	libwayland-util-tests.la
+
+# the same as libwayland-util.la, but with static
+# function being exported
+libwayland_util_tests_la_SOURCES =		\
+	src/connection.c			\
+	src/wayland-util.c			\
+	src/wayland-util.h			\
+	src/wayland-os.c			\
+	src/wayland-os.h			\
+	src/wayland-private.h
+libwayland_util_tests_la_CFLAGS = -DUNIT_TESTS
 
 libtest_runner_la_SOURCES =			\
 	tests/test-runner.c			\
 	tests/test-runner.h			\
 	tests/test-helpers.c
 libtest_runner_la_LIBADD =			\
-	libwayland-util.la			\
+	libwayland-util-tests.la		\
 	libwayland-client.la			\
 	libwayland-server.la			\
 	-lrt -ldl $(FFI_LIBS)
