@@ -65,7 +65,7 @@ struct wl_connection {
 	int want_flush;
 };
 
-static int
+WL_PRIVATE int
 wl_buffer_put(struct wl_buffer *b, const void *data, size_t count)
 {
 	uint32_t head, size;
@@ -91,7 +91,7 @@ wl_buffer_put(struct wl_buffer *b, const void *data, size_t count)
 	return 0;
 }
 
-static void
+WL_PRIVATE void
 wl_buffer_put_iov(struct wl_buffer *b, struct iovec *iov, int *count)
 {
 	uint32_t head, tail;
@@ -115,7 +115,7 @@ wl_buffer_put_iov(struct wl_buffer *b, struct iovec *iov, int *count)
 	}
 }
 
-static void
+WL_PRIVATE void
 wl_buffer_get_iov(struct wl_buffer *b, struct iovec *iov, int *count)
 {
 	uint32_t head, tail;
@@ -139,7 +139,7 @@ wl_buffer_get_iov(struct wl_buffer *b, struct iovec *iov, int *count)
 	}
 }
 
-static void
+WL_PRIVATE void
 wl_buffer_copy(struct wl_buffer *b, void *data, size_t count)
 {
 	uint32_t tail, size;
@@ -154,7 +154,7 @@ wl_buffer_copy(struct wl_buffer *b, void *data, size_t count)
 	}
 }
 
-static uint32_t
+WL_PRIVATE uint32_t
 wl_buffer_size(struct wl_buffer *b)
 {
 	return b->head - b->tail;

@@ -44,6 +44,14 @@ struct wl_buffer {
 
 #define MASK(i) ((i) & 4095)
 
+struct iovec;
+
+void wl_buffer_put(struct wl_buffer *b, const void *data, size_t count);
+void wl_buffer_put_iov(struct wl_buffer *b, struct iovec *iov, int *count);
+void wl_buffer_get_iov(struct wl_buffer *b, struct iovec *iov, int *count);
+void wl_buffer_copy(struct wl_buffer *b, void *data, size_t count);
+uint32_t wl_buffer_size(struct wl_buffer *b);
+
 #else
 #define WL_PRIVATE static
 #endif /* UNIT_TESTS */
