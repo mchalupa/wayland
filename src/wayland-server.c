@@ -116,6 +116,7 @@ struct wl_resource {
 	void *data;
 	int version;
 	wl_dispatcher_func_t dispatcher;
+	int intact;
 };
 
 static int debug_server = 0;
@@ -228,6 +229,12 @@ wl_resource_post_error(struct wl_resource *resource,
 }
 
 static int
+wl_message_is_destructor(const struct wl_message *message)
+{
+	return message->signature[0] == 'D';
+}
+
+static int
 wl_client_connection_data(int fd, uint32_t mask, void *data)
 {
 	struct wl_client *client = data;
@@ -280,6 +287,12 @@ wl_client_connection_data(int fd, uint32_t mask, void *data)
 					       WL_DISPLAY_ERROR_INVALID_OBJECT,
 					       "invalid object %u", p[0]);
 			break;
+		} else if (resource == WL_ZOMBIE_OBJECT) {
+			/* do nothing on zombie objects */
+			wl_log("skipping request on zombie object (%d)\n", p[0]);
+			wl_connection_consume(connection, size);
+			len -= size;
+			continue;
 		}
 
 		object = &resource->object;
@@ -329,6 +342,15 @@ wl_client_connection_data(int fd, uint32_t mask, void *data)
 
 		if (debug_server)
 			wl_closure_print(closure, object, false);
+
+		/* intact resources dispatch only destructors */
+		if ((resource->object.flags & WL_OBJECT_FLAG_INERT) &&
+		    !wl_message_is_destructor(message)) {
+			/* Let user know why the request "vanished" */
+			wl_log("Skipping non-destructor action on inert resource\n");
+			wl_closure_destroy(closure);
+			continue;
+		}
 
 		if ((resource_flags & WL_MAP_ENTRY_LEGACY) ||
 		    resource->dispatcher == NULL) {
@@ -523,8 +545,13 @@ static void
 destroy_resource(void *element, void *data)
 {
 	struct wl_resource *resource = element;
-	struct wl_client *client = resource->client;
+	struct wl_client *client;
 	uint32_t flags;
+
+	if (resource == WL_ZOMBIE_OBJECT)
+		return;
+
+	client = resource->client;
 
 	wl_signal_emit(&resource->destroy_signal, resource);
 
@@ -1277,6 +1304,18 @@ wl_resource_set_implementation(struct wl_resource *resource,
 }
 
 WL_EXPORT void
+wl_resource_set_inert(struct wl_resource *resource)
+{
+	resource->object.flags |= WL_OBJECT_FLAG_INERT;
+}
+
+WL_EXPORT int
+wl_resource_is_inert(struct wl_resource *resource)
+{
+	return (resource->object.flags & WL_OBJECT_FLAG_INERT);
+}
+
+WL_EXPORT void
 wl_resource_set_dispatcher(struct wl_resource *resource,
 			   wl_dispatcher_func_t dispatcher,
 			   const void *implementation,
@@ -1299,20 +1338,19 @@ wl_resource_create(struct wl_client *client,
 	if (resource == NULL)
 		return NULL;
 
+	memset(resource, 0, sizeof *resource);
+
 	if (id == 0)
 		id = wl_map_insert_new(&client->objects, 0, NULL);
 
 	resource->object.id = id;
 	resource->object.interface = interface;
-	resource->object.implementation = NULL;
+	resource->object.flags = 0;
 
 	wl_signal_init(&resource->destroy_signal);
 
-	resource->destroy = NULL;
 	resource->client = client;
-	resource->data = NULL;
 	resource->version = version;
-	resource->dispatcher = NULL;
 
 	if (wl_map_insert_at(&client->objects, 0, id, resource) < 0) {
 		wl_resource_post_error(client->display_resource,

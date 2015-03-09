@@ -415,6 +415,9 @@ get_next_argument(const char *signature, struct argument_details *details)
 	details->nullable = 0;
 	for(; *signature; ++signature) {
 		switch(*signature) {
+		case 'D':
+			/* skip destructor flag */
+			break;
 		case 'i':
 		case 'u':
 		case 'f':
@@ -457,8 +460,14 @@ int
 wl_message_get_since(const struct wl_message *message)
 {
 	int since;
+	const char *sig = message->signature;
 
-	since = atoi(message->signature);
+	/* destructor flag is always the first letter in
+	 * signature */
+	if (*sig == 'D')
+		++sig;
+
+	since = atoi(sig);
 
 	if (since == 0)
 		since = 1;
@@ -622,6 +631,7 @@ wl_connection_demarshal(struct wl_connection *connection,
 	struct argument_details arg;
 	struct wl_closure *closure;
 	struct wl_array *array, *array_extra;
+	struct wl_object *sender;
 
 	count = arg_count_for_signature(message->signature);
 	if (count > WL_CLOSURE_MAX_ARGS) {
@@ -646,6 +656,13 @@ wl_connection_demarshal(struct wl_connection *connection,
 	wl_connection_copy(connection, p, size);
 	closure->sender_id = *p++;
 	closure->opcode = *p++ & 0x0000ffff;
+
+	sender = wl_map_lookup(objects, closure->sender_id);
+
+	if(!sender) {
+		wl_log("got message from unknown object (%d)\n", closure->sender_id);
+		goto err;
+	}
 
 	signature = message->signature;
 	for (i = 0; i < count; i++) {
@@ -730,6 +747,16 @@ wl_connection_demarshal(struct wl_connection *connection,
 				       id, message->name, message->signature);
 				errno = EINVAL;
 				goto err;
+			}
+
+			/* we don't wan't call any handlers for inert objects
+			 * but destructors. But if the message is supposed to
+			 * create new object, we must do it, otherwise we will
+			 * break id's logic. Create new objects as zombies
+			 * - they will not do anything, and will be deleted when
+			 * client will delete them. */
+			if (sender->flags & WL_OBJECT_FLAG_INERT) {
+				wl_map_insert_at(objects, 0, id, WL_ZOMBIE_OBJECT);
 			}
 
 			break;
@@ -1186,9 +1213,10 @@ wl_closure_print(struct wl_closure *closure, struct wl_object *target, int send)
 	clock_gettime(CLOCK_REALTIME, &tp);
 	time = (tp.tv_sec * 1000000L) + (tp.tv_nsec / 1000);
 
-	fprintf(stderr, "[%10.3f] %s%s@%u.%s(",
+	fprintf(stderr, "[%10.3f] %s%s%s@%u.%s(",
 		time / 1000.0,
 		send ? " -> " : "",
+		(target->flags & WL_OBJECT_FLAG_INERT) ? "INERT " : "",
 		target->interface->name, target->id,
 		closure->message->name);
 

@@ -44,7 +44,8 @@
 
 enum wl_object_flags {
 	WL_OBJECT_FLAG_DESTROYED  = 1 << 0,
-	WL_OBJECT_FLAG_ID_DELETED = 1 << 1
+	WL_OBJECT_FLAG_ID_DELETED = 1 << 1,
+	WL_OBJECT_FLAG_INERT      = 1 << 2
 };
 
 struct wl_object {
