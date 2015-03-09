@@ -111,6 +111,13 @@ static struct wl_proxy *
 wl_map_lookup_proxy(struct wl_map *objects, uint32_t id)
 {
 	struct wl_object *object = wl_map_lookup(objects, id);
+
+	/* in the case that offset of object in proxy is not 0
+	 * and the proxy is WL_ZOMBIE_OBJECT (which is not embedded
+	 * in any proxy), we could run into troubles. */
+	if (object == WL_ZOMBIE_OBJECT)
+		return (struct wl_proxy *) WL_ZOMBIE_OBJECT;
+
 	return container_of(object, struct wl_proxy, object);
 }
 

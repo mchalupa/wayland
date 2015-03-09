@@ -391,6 +391,10 @@ wl_resource_set_dispatcher(struct wl_resource *resource,
 			   wl_resource_destroy_func_t destroy);
 
 void
+wl_resource_set_inert(struct wl_resource *resource);
+int
+wl_resource_is_inert(struct wl_resource *resource);
+void
 wl_resource_destroy(struct wl_resource *resource);
 uint32_t
 wl_resource_get_id(struct wl_resource *resource);

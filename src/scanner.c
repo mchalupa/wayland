@@ -1571,6 +1571,11 @@ emit_messages(struct wl_list *message_list,
 	wl_list_for_each(m, message_list, link) {
 		printf("\t{ \"%s\", \"", m->name);
 
+		/* make destructor flag the first letter in
+		 * signature */
+		if (m->destructor)
+			printf("D");
+
 		if (m->since > 1)
 			printf("%d", m->since);
 

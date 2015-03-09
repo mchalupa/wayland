@@ -127,6 +127,11 @@ static struct wl_resource *
 wl_map_lookup_resource(struct wl_map *objects, uint32_t id)
 {
 	struct wl_object *object = wl_map_lookup(objects, id);
+
+	/* inherently inert object are not (in any) resource */
+	if (!object || (object->flags & WL_OBJECT_FLAG_INERT_INHERENTLY))
+		return NULL;
+
 	return container_of(object, struct wl_resource, object);
 }
 
@@ -136,6 +141,9 @@ wl_resource_post_event_array(struct wl_resource *resource, uint32_t opcode,
 {
 	struct wl_closure *closure;
 	struct wl_object *object = &resource->object;
+
+	if (object->flags & WL_OBJECT_FLAG_INERT)
+		return;
 
 	closure = wl_closure_marshal(object, opcode, args,
 				     &object->interface->events[opcode]);
@@ -238,6 +246,15 @@ wl_resource_post_error(struct wl_resource *resource,
 }
 
 static int
+wl_message_is_destructor(const struct wl_message *message)
+{
+	return message->signature[0] == 'D';
+}
+
+static void
+client_delete_id(struct wl_client *client, uint32_t id);
+
+static int
 wl_client_connection_data(int fd, uint32_t mask, void *data)
 {
 	struct wl_client *client = data;
@@ -283,16 +300,18 @@ wl_client_connection_data(int fd, uint32_t mask, void *data)
 		if (len < size)
 			break;
 
-		resource = wl_map_lookup_resource(&client->objects, p[0]);
 		resource_flags = wl_map_lookup_flags(&client->objects, p[0]);
-		if (resource == NULL) {
+		object = wl_map_lookup(&client->objects, p[0]);
+		if (object == NULL) {
 			wl_resource_post_error(client->display_resource,
 					       WL_DISPLAY_ERROR_INVALID_OBJECT,
 					       "invalid object %u", p[0]);
 			break;
 		}
 
-		object = &resource->object;
+		/* this would be wayland bug */
+		assert(object->interface && "Object without interface");
+
 		if (opcode >= object->interface->method_count) {
 			wl_resource_post_error(client->display_resource,
 					       WL_DISPLAY_ERROR_INVALID_METHOD,
@@ -303,9 +322,18 @@ wl_client_connection_data(int fd, uint32_t mask, void *data)
 			break;
 		}
 
+		/* inherently inert objects are not embedded in any
+		 * resource. However, we cannot just bail out here.
+		 * We need the closure to be created, because there
+		 * will be possibly created new inherently inert objects */
+		if (object->flags & WL_OBJECT_FLAG_INERT_INHERENTLY)
+			resource = NULL;
+		else
+			resource = wl_container_of(object, resource, object);
+
 		message = &object->interface->methods[opcode];
 		since = wl_message_get_since(message);
-		if (!(resource_flags & WL_MAP_ENTRY_LEGACY) &&
+		if (!(resource_flags & WL_MAP_ENTRY_LEGACY) && resource &&
 		    resource->version > 0 && resource->version < since) {
 			wl_resource_post_error(client->display_resource,
 					       WL_DISPLAY_ERROR_INVALID_METHOD,
@@ -317,12 +345,12 @@ wl_client_connection_data(int fd, uint32_t mask, void *data)
 			break;
 		}
 
-
 		closure = wl_connection_demarshal(client->connection, size,
 						  &client->objects, message);
 
 		if (closure == NULL && errno == ENOMEM) {
-			wl_resource_post_no_memory(resource);
+			if (resource)
+				wl_resource_post_no_memory(resource);
 			break;
 		} else if (closure == NULL ||
 			   wl_closure_lookup_objects(closure, &client->objects) < 0) {
@@ -339,13 +367,48 @@ wl_client_connection_data(int fd, uint32_t mask, void *data)
 		if (debug_server)
 			wl_closure_print(closure, object, false);
 
-		if ((resource_flags & WL_MAP_ENTRY_LEGACY) ||
-		    resource->dispatcher == NULL) {
-			wl_closure_invoke(closure, WL_CLOSURE_INVOKE_SERVER,
-					  object, opcode, client);
+		/* inert resources dispatch only destructors */
+		if ((object->flags & WL_OBJECT_FLAG_INERT) &&
+		    !wl_message_is_destructor(message)) {
+			/* Let user know why the request "vanished" */
+			wl_log("Skipping non-destructor action on inert resource"
+			       " (%s@%u.%s)\n", object->interface->name, object->id,
+			       message->name);
+			wl_closure_destroy(closure);
+			continue;
+		}
+
+		/* if everything is ok, or if this is destructor of inert object,
+		 * dispatch the request */
+		if (resource) {
+			if ((object->flags & WL_OBJECT_FLAG_INERT)
+			     && !object->implementation) {
+				wl_log("No implementation at inert object %s@%u."
+				       " Blame compositor!\n",
+				       object->interface->name, object->id);
+				wl_closure_destroy(closure);
+				continue;
+			}
+
+			if ((resource_flags & WL_MAP_ENTRY_LEGACY) ||
+			     resource->dispatcher == NULL) {
+				wl_closure_invoke(closure, WL_CLOSURE_INVOKE_SERVER,
+						  object, opcode, client);
+			} else {
+				wl_closure_dispatch(closure, resource->dispatcher,
+						    object, opcode);
+			}
 		} else {
-			wl_closure_dispatch(closure, resource->dispatcher,
-					    object, opcode);
+			/* we are here, but do not have resource => this is a
+			 * destructor of inherently inert object.
+			 * Just send delete_id - destructor is not set anyway */
+			assert(object->flags & WL_OBJECT_FLAG_INERT_INHERENTLY);
+
+			client_delete_id(client, object->id);
+
+			/* inherently inert objects are allocated dynamically.
+			 * We can free them at this moment */
+			free(object);
 		}
 
 		wl_closure_destroy(closure);
@@ -568,8 +631,10 @@ static void
 destroy_resource(void *element, void *data)
 {
 	struct wl_resource *resource = element;
-	struct wl_client *client = resource->client;
+	struct wl_client *client;
 	uint32_t flags;
+
+	client = resource->client;
 
 	wl_signal_emit(&resource->destroy_signal, resource);
 
@@ -584,8 +649,30 @@ destroy_resource(void *element, void *data)
 static inline void
 destroy_resource_for_object(void *element, void *data)
 {
-	/* element is of type wl_object * */
+	struct wl_object *object = element;
+
+	/* if this is inherently inert object, we cannot destroy
+	 * it as a resource. We just need to free the memory */
+	if (object->flags & WL_OBJECT_FLAG_INERT_INHERENTLY) {
+		free(object);
+		return;
+	}
+
 	destroy_resource(container_of(element, struct wl_resource, object), data);
+}
+
+static void
+client_delete_id(struct wl_client *client, uint32_t id)
+{
+	if (id < WL_SERVER_ID_START) {
+		if (client->display_resource) {
+			wl_resource_queue_event(client->display_resource,
+						WL_DISPLAY_DELETE_ID, id);
+		}
+		wl_map_insert_at(&client->objects, 0, id, NULL);
+	} else {
+		wl_map_remove(&client->objects, id);
+	}
 }
 
 WL_EXPORT void
@@ -597,15 +684,7 @@ wl_resource_destroy(struct wl_resource *resource)
 	id = resource->object.id;
 	destroy_resource(resource, NULL);
 
-	if (id < WL_SERVER_ID_START) {
-		if (client->display_resource) {
-			wl_resource_queue_event(client->display_resource,
-						WL_DISPLAY_DELETE_ID, id);
-		}
-		wl_map_insert_at(&client->objects, 0, id, NULL);
-	} else {
-		wl_map_remove(&client->objects, id);
-	}
+	client_delete_id(client, id);
 }
 
 WL_EXPORT uint32_t
@@ -1386,6 +1465,18 @@ wl_resource_set_implementation(struct wl_resource *resource,
 }
 
 WL_EXPORT void
+wl_resource_set_inert(struct wl_resource *resource)
+{
+	resource->object.flags |= WL_OBJECT_FLAG_INERT;
+}
+
+WL_EXPORT int
+wl_resource_is_inert(struct wl_resource *resource)
+{
+	return (resource->object.flags & WL_OBJECT_FLAG_INERT);
+}
+
+WL_EXPORT void
 wl_resource_set_dispatcher(struct wl_resource *resource,
 			   wl_dispatcher_func_t dispatcher,
 			   const void *implementation,
@@ -1408,20 +1499,18 @@ wl_resource_create(struct wl_client *client,
 	if (resource == NULL)
 		return NULL;
 
+	memset(resource, 0, sizeof *resource);
+
 	if (id == 0)
 		id = wl_map_insert_new(&client->objects, 0, NULL);
 
 	resource->object.id = id;
 	resource->object.interface = interface;
-	resource->object.implementation = NULL;
 
 	wl_signal_init(&resource->destroy_signal);
 
-	resource->destroy = NULL;
 	resource->client = client;
-	resource->data = NULL;
 	resource->version = version;
-	resource->dispatcher = NULL;
 
 	if (wl_map_insert_at(&client->objects, 0, id, &resource->object) < 0) {
 		wl_resource_post_error(client->display_resource,
