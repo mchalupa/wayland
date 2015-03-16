@@ -1,5 +1,6 @@
 /*
  * Copyright © 2013 Marek Chalupa
+ * Copyright © 2015 Red Hat, Inc.
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
  * documentation for any purpose is hereby granted without fee, provided that
@@ -23,9 +24,13 @@
 #include <assert.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <string.h>
+
+#define WL_HIDE_DEPRECATED 1
 
 #include "wayland-server.h"
 #include "test-runner.h"
+#include "test-compositor.h"
 
 TEST(create_resource_tst)
 {
@@ -58,6 +63,10 @@ TEST(create_resource_tst)
 
 	wl_resource_set_user_data(res, (void *) 0xbee);
 	assert(wl_resource_get_user_data(res) == (void *) 0xbee);
+
+	assert(!wl_resource_is_inert(res));
+	wl_resource_set_inert(res);
+	assert(wl_resource_is_inert(res));
 
 	wl_resource_destroy(res);
 	wl_client_destroy(client);
@@ -162,4 +171,181 @@ TEST(create_resource_with_same_id)
 	wl_client_destroy(client);
 	wl_display_destroy(display);
 	close(s[1]);
+}
+
+static void
+handle_globals(void *data, struct wl_registry *registry,
+	       uint32_t id, const char *intf, uint32_t ver)
+{
+	struct wl_shm_pool **pool = data;
+
+	if (strcmp(intf, "wl_shm_pool") == 0) {
+		(*pool) = wl_registry_bind(registry, id,
+					   &wl_shm_pool_interface, ver);
+		assert(pool);
+	}
+}
+
+static const struct wl_registry_listener registry_listener = {
+	handle_globals, NULL
+};
+
+static void
+inert_resource_main(void)
+{
+	struct client *cli = client_connect();
+	struct wl_shm_pool *pool;
+	struct wl_registry *reg = wl_display_get_registry(cli->wl_display);
+	assert(reg);
+
+	wl_registry_add_listener(reg, &registry_listener, &pool);
+	assert(wl_display_roundtrip(cli->wl_display) != -1);
+	assert(pool && "Did not bind to the pool");
+
+	wl_registry_destroy(reg);
+
+	/* let the display make the pool resource inert */
+	stop_display(cli, 1);
+	assert(wl_display_roundtrip(cli->wl_display) != -1);
+
+	/* these requests should be ignored */
+	wl_shm_pool_resize(pool, 100);
+	wl_shm_pool_resize(pool, 200);
+
+	/* this one should be not */
+	wl_shm_pool_destroy(pool);
+	assert(wl_display_roundtrip(cli->wl_display) != -1);
+
+	client_disconnect(cli);
+}
+
+static void
+pool_resize(struct wl_client *client,
+	    struct wl_resource *resource,
+	    int32_t size)
+{
+	assert(0 && "This event should be never called");
+}
+
+static int destroyed = 0;
+
+static void
+pool_destroy(struct wl_client *client,
+        struct wl_resource *resource)
+{
+	destroyed = 1;
+}
+
+static const struct wl_shm_pool_interface pool_implementation = {
+	.resize = pool_resize,
+	.destroy = pool_destroy
+};
+
+static void
+pool_bind(struct wl_client *client, void *data,
+	  uint32_t version, uint32_t id)
+{
+	struct display *d = data;
+	struct client_info *ci;
+	struct wl_resource *res;
+
+	wl_list_for_each(ci, &d->clients, link)
+		if (ci->wl_client == client)
+			break;
+
+	res = wl_resource_create(client, &wl_shm_pool_interface,
+				 version, id);
+	assert(res);
+	wl_resource_set_implementation(res, &pool_implementation, NULL, NULL);
+
+	ci->data = res;
+}
+
+TEST(inert_resource)
+{
+	struct client_info *ci;
+	struct wl_resource *res;
+	struct display *d = display_create();
+	/* we need some interface with destructor. wl_pointer/keyboard
+	 * has destructor, but we'd need to implement wl_seat for them too,
+	 * so choose rather wl_shm_pool */
+	wl_global_create(d->wl_display, &wl_shm_pool_interface,
+			 wl_shm_pool_interface.version, d, pool_bind);
+
+	ci = client_create(d, inert_resource_main);
+	display_run(d);
+
+	/* display has been stopped, make resource inert */
+	res = ci->data;
+	assert(res && "Client did not bind to the global");
+
+	assert(!wl_resource_is_inert(res));
+	wl_resource_set_inert(res);
+	assert(wl_resource_is_inert(res));
+
+	display_resume(d);
+
+	assert(destroyed == 1 && "Destructor was not called");
+	display_destroy(d);
+}
+
+static void
+inert_parent_resource_main(void)
+{
+	struct client *cli = client_connect();
+	struct wl_shm_pool *pool;
+	struct wl_registry *reg = wl_display_get_registry(cli->wl_display);
+	struct wl_buffer *buffer;
+	assert(reg);
+
+	wl_registry_add_listener(reg, &registry_listener, &pool);
+	assert(wl_display_roundtrip(cli->wl_display) != -1);
+	assert(pool && "Did not bind to the pool");
+
+	wl_registry_destroy(reg);
+
+	/* let the display make the pool resource inert */
+	stop_display(cli, 1);
+	assert(wl_display_roundtrip(cli->wl_display) != -1);
+
+	/* these requests should be ignored */
+	buffer = wl_shm_pool_create_buffer(pool, 0, 100, 100, 4, 0);
+	assert(buffer);
+	assert(wl_display_roundtrip(cli->wl_display) != -1);
+
+	wl_buffer_destroy(buffer);
+	assert(wl_display_roundtrip(cli->wl_display) != -1);
+
+	/* this one should be not */
+	wl_shm_pool_destroy(pool);
+	assert(wl_display_roundtrip(cli->wl_display) != -1);
+
+	client_disconnect(cli);
+}
+
+/* test creating objects on inert object */
+TEST(inert_parent_resource)
+{
+	struct client_info *ci;
+	struct wl_resource *res;
+	struct display *d = display_create();
+
+	wl_global_create(d->wl_display, &wl_shm_pool_interface,
+			 wl_shm_pool_interface.version, d, pool_bind);
+
+	ci = client_create(d, inert_parent_resource_main);
+	display_run(d);
+
+	/* display has been stopped, make resource inert */
+	res = ci->data;
+	assert(res && "Client did not bind to the global");
+
+	assert(!wl_resource_is_inert(res));
+	wl_resource_set_inert(res);
+	assert(wl_resource_is_inert(res));
+
+	display_resume(d);
+
+	assert(destroyed == 1 && "Destructor was not called");
+	display_destroy(d);
 }
