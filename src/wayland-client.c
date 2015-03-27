@@ -46,16 +46,10 @@
 
 /** \cond */
 
-enum wl_proxy_flag {
-	WL_PROXY_FLAG_ID_DELETED = (1 << 0),
-	WL_PROXY_FLAG_DESTROYED = (1 << 1)
-};
-
 struct wl_proxy {
 	struct wl_object object;
 	struct wl_display *display;
 	struct wl_event_queue *queue;
-	uint32_t flags;
 	int refcount;
 	void *user_data;
 	wl_dispatcher_func_t dispatcher;
@@ -234,7 +228,7 @@ decrease_closure_args_refcount(struct wl_closure *closure)
 		case 'o':
 			proxy = (struct wl_proxy *) closure->args[i].o;
 			if (proxy) {
-				if (proxy->flags & WL_PROXY_FLAG_DESTROYED)
+				if (proxy->object.flags & WL_OBJECT_FLAG_DESTROYED)
 					closure->args[i].o = NULL;
 
 				proxy->refcount--;
@@ -402,7 +396,7 @@ wl_proxy_create_for_id(struct wl_proxy *factory,
 void
 proxy_destroy(struct wl_proxy *proxy)
 {
-	if (proxy->flags & WL_PROXY_FLAG_ID_DELETED)
+	if (proxy->object.flags & WL_OBJECT_FLAG_ID_DELETED)
 		wl_map_remove(&proxy->display->objects, proxy->object.id);
 	else if (proxy->object.id < WL_SERVER_ID_START)
 		wl_map_insert_at(&proxy->display->objects, 0,
@@ -412,7 +406,7 @@ proxy_destroy(struct wl_proxy *proxy)
 				 proxy->object.id, NULL);
 
 
-	proxy->flags |= WL_PROXY_FLAG_DESTROYED;
+	proxy->object.flags |= WL_OBJECT_FLAG_DESTROYED;
 
 	proxy->refcount--;
 	if (!proxy->refcount)
@@ -728,7 +722,7 @@ display_handle_delete_id(void *data, struct wl_display *display, uint32_t id)
 		wl_log("error: received delete_id for unknown id (%u)\n", id);
 
 	if (proxy && proxy != WL_ZOMBIE_OBJECT)
-		proxy->flags |= WL_PROXY_FLAG_ID_DELETED;
+		proxy->object.flags |= WL_OBJECT_FLAG_ID_DELETED;
 	else
 		wl_map_remove(&display->objects, id);
 
@@ -835,11 +829,11 @@ wl_display_connect_to_fd(int fd)
 	display->proxy.object.interface = &wl_display_interface;
 	display->proxy.object.id =
 		wl_map_insert_new(&display->objects, 0, display);
+	display->proxy.object.flags = 0;
 	display->proxy.display = display;
 	display->proxy.object.implementation = (void(**)(void)) &display_listener;
 	display->proxy.user_data = display;
 	display->proxy.queue = &display->default_queue;
-	display->proxy.flags = 0;
 	display->proxy.refcount = 1;
 
 	display->connection = wl_connection_create(display->fd);
@@ -1142,7 +1136,7 @@ dispatch_event(struct wl_display *display, struct wl_event_queue *queue)
 
 	decrease_closure_args_refcount(closure);
 	proxy = closure->proxy;
-	proxy_destroyed = !!(proxy->flags & WL_PROXY_FLAG_DESTROYED);
+	proxy_destroyed = !!(proxy->object.flags & WL_OBJECT_FLAG_DESTROYED);
 
 	proxy->refcount--;
 	if (proxy_destroyed) {

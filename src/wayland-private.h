@@ -42,10 +42,16 @@
 #define WL_SERVER_ID_START 0xff000000
 #define WL_CLOSURE_MAX_ARGS 20
 
+enum wl_object_flags {
+	WL_OBJECT_FLAG_DESTROYED  = 1 << 0,
+	WL_OBJECT_FLAG_ID_DELETED = 1 << 1
+};
+
 struct wl_object {
 	const struct wl_interface *interface;
 	const void *implementation;
 	uint32_t id;
+	uint32_t flags;
 };
 
 extern struct wl_object global_zombie_object;
