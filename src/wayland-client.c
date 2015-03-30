@@ -107,6 +107,13 @@ struct wl_display {
 
 static int debug_client = 0;
 
+static struct wl_proxy *
+wl_map_lookup_proxy(struct wl_map *objects, uint32_t id)
+{
+	struct wl_object *object = wl_map_lookup(objects, id);
+	return container_of(object, struct wl_proxy, object);
+}
+
 /**
  * This helper function wakes up all threads that are
  * waiting for display->reader_cond (i. e. when reading is done,
@@ -337,7 +344,7 @@ proxy_create(struct wl_proxy *factory, const struct wl_interface *interface,
 	proxy->refcount = 1;
 	proxy->version = version;
 
-	proxy->object.id = wl_map_insert_new(&display->objects, 0, proxy);
+	proxy->object.id = wl_map_insert_new(&display->objects, 0, &proxy->object);
 
 	return proxy;
 }
@@ -393,7 +400,7 @@ wl_proxy_create_for_id(struct wl_proxy *factory,
 	proxy->refcount = 1;
 	proxy->version = factory->version;
 
-	wl_map_insert_at(&display->objects, 0, id, proxy);
+	wl_map_insert_at(&display->objects, 0, id, &proxy->object);
 
 	return proxy;
 }
@@ -813,8 +820,7 @@ display_handle_delete_id(void *data, struct wl_display *display, uint32_t id)
 
 	pthread_mutex_lock(&display->mutex);
 
-	proxy = wl_map_lookup(&display->objects, id);
-
+	proxy = wl_map_lookup_proxy(&display->objects, id);
 	if (!proxy)
 		wl_log("error: received delete_id for unknown id (%u)\n", id);
 
@@ -923,7 +929,7 @@ wl_display_connect_to_fd(int fd)
 
 	display->proxy.object.interface = &wl_display_interface;
 	display->proxy.object.id =
-		wl_map_insert_new(&display->objects, 0, display);
+		wl_map_insert_new(&display->objects, 0, &display->proxy.object);
 	display->proxy.object.flags = 0;
 	display->proxy.display = display;
 	display->proxy.object.implementation = (void(**)(void)) &display_listener;
@@ -1199,7 +1205,7 @@ queue_event(struct wl_display *display, int len)
 	if (len < size)
 		return 0;
 
-	proxy = wl_map_lookup(&display->objects, id);
+	proxy = wl_map_lookup_proxy(&display->objects, id);
 	if (proxy == WL_ZOMBIE_OBJECT) {
 		wl_connection_consume(display->connection, size);
 		return size;

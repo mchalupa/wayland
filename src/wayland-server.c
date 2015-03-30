@@ -123,6 +123,13 @@ struct wl_resource {
 
 static int debug_server = 0;
 
+static struct wl_resource *
+wl_map_lookup_resource(struct wl_map *objects, uint32_t id)
+{
+	struct wl_object *object = wl_map_lookup(objects, id);
+	return container_of(object, struct wl_resource, object);
+}
+
 WL_EXPORT void
 wl_resource_post_event_array(struct wl_resource *resource, uint32_t opcode,
 			     union wl_argument *args)
@@ -276,7 +283,7 @@ wl_client_connection_data(int fd, uint32_t mask, void *data)
 		if (len < size)
 			break;
 
-		resource = wl_map_lookup(&client->objects, p[0]);
+		resource = wl_map_lookup_resource(&client->objects, p[0]);
 		resource_flags = wl_map_lookup_flags(&client->objects, p[0]);
 		if (resource == NULL) {
 			wl_resource_post_error(client->display_resource,
@@ -540,7 +547,7 @@ wl_client_get_fd(struct wl_client *client)
 WL_EXPORT struct wl_resource *
 wl_client_get_object(struct wl_client *client, uint32_t id)
 {
-	return wl_map_lookup(&client->objects, id);
+	return wl_map_lookup_resource(&client->objects, id);
 }
 
 WL_EXPORT void
@@ -572,6 +579,13 @@ destroy_resource(void *element, void *data)
 
 	if (!(flags & WL_MAP_ENTRY_LEGACY))
 		free(resource);
+}
+
+static inline void
+destroy_resource_for_object(void *element, void *data)
+{
+	/* element is of type wl_object * */
+	destroy_resource(container_of(element, struct wl_resource, object), data);
 }
 
 WL_EXPORT void
@@ -706,7 +720,7 @@ wl_client_destroy(struct wl_client *client)
 	wl_signal_emit(&client->destroy_signal, client);
 
 	wl_client_flush(client);
-	wl_map_for_each(&client->objects, destroy_resource, &serial);
+	wl_map_for_each(&client->objects, destroy_resource_for_object, &serial);
 	wl_map_release(&client->objects);
 	wl_event_source_remove(client->source);
 	close(wl_connection_destroy(client->connection));
@@ -1409,7 +1423,7 @@ wl_resource_create(struct wl_client *client,
 	resource->version = version;
 	resource->dispatcher = NULL;
 
-	if (wl_map_insert_at(&client->objects, 0, id, resource) < 0) {
+	if (wl_map_insert_at(&client->objects, 0, id, &resource->object) < 0) {
 		wl_resource_post_error(client->display_resource,
 				       WL_DISPLAY_ERROR_INVALID_OBJECT,
 				       "invalid new id %d", id);
@@ -1491,9 +1505,9 @@ wl_client_add_resource(struct wl_client *client,
 	if (resource->object.id == 0) {
 		resource->object.id =
 			wl_map_insert_new(&client->objects,
-					  WL_MAP_ENTRY_LEGACY, resource);
+					  WL_MAP_ENTRY_LEGACY, &resource->object);
 	} else if (wl_map_insert_at(&client->objects, WL_MAP_ENTRY_LEGACY,
-				  resource->object.id, resource) < 0) {
+				  resource->object.id, &resource->object) < 0) {
 		wl_resource_post_error(client->display_resource,
 				       WL_DISPLAY_ERROR_INVALID_OBJECT,
 				       "invalid new id %d",
