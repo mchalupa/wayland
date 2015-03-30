@@ -125,6 +125,11 @@ static struct wl_resource *
 wl_map_lookup_resource(struct wl_map *objects, uint32_t id)
 {
 	struct wl_object *object = wl_map_lookup(objects, id);
+
+	/* inherently inert object are not (in any) resource */
+	if (!object || (object->flags & WL_OBJECT_FLAG_INERT_INHERENTLY))
+		return NULL;
+
 	return container_of(object, struct wl_resource, object);
 }
 
@@ -241,6 +246,9 @@ wl_message_is_destructor(const struct wl_message *message)
 	return message->signature[0] == 'D';
 }
 
+static void
+client_delete_id(struct wl_client *client, uint32_t id);
+
 static int
 wl_client_connection_data(int fd, uint32_t mask, void *data)
 {
@@ -287,22 +295,17 @@ wl_client_connection_data(int fd, uint32_t mask, void *data)
 		if (len < size)
 			break;
 
-		resource = wl_map_lookup_resource(&client->objects, p[0]);
 		resource_flags = wl_map_lookup_flags(&client->objects, p[0]);
-		if (resource == NULL) {
+		object = wl_map_lookup(&client->objects, p[0]);
+		if (object == NULL) {
 			wl_resource_post_error(client->display_resource,
 					       WL_DISPLAY_ERROR_INVALID_OBJECT,
 					       "invalid object %u", p[0]);
 			break;
-		} else if (resource == WL_ZOMBIE_OBJECT) {
-			/* do nothing on zombie objects */
-			wl_log("skipping request on zombie object (%d)\n", p[0]);
-			wl_connection_consume(connection, size);
-			len -= size;
-			continue;
 		}
 
-		object = &resource->object;
+		assert(object->interface && "Object without interface");
+
 		if (opcode >= object->interface->method_count) {
 			wl_resource_post_error(client->display_resource,
 					       WL_DISPLAY_ERROR_INVALID_METHOD,
@@ -313,9 +316,14 @@ wl_client_connection_data(int fd, uint32_t mask, void *data)
 			break;
 		}
 
+		if (object->flags & WL_OBJECT_FLAG_INERT_INHERENTLY)
+			resource = NULL;
+		else
+			resource = wl_container_of(object, resource, object);
+
 		message = &object->interface->methods[opcode];
 		since = wl_message_get_since(message);
-		if (!(resource_flags & WL_MAP_ENTRY_LEGACY) &&
+		if (!(resource_flags & WL_MAP_ENTRY_LEGACY) && resource &&
 		    resource->version > 0 && resource->version < since) {
 			wl_resource_post_error(client->display_resource,
 					       WL_DISPLAY_ERROR_INVALID_METHOD,
@@ -332,7 +340,7 @@ wl_client_connection_data(int fd, uint32_t mask, void *data)
 						  &client->objects, message);
 		len -= size;
 
-		if (closure == NULL && errno == ENOMEM) {
+		if (closure == NULL && errno == ENOMEM && resource) {
 			wl_resource_post_no_memory(resource);
 			break;
 		} else if (closure == NULL ||
@@ -350,8 +358,8 @@ wl_client_connection_data(int fd, uint32_t mask, void *data)
 		if (debug_server)
 			wl_closure_print(closure, object, false);
 
-		/* intact resources dispatch only destructors */
-		if ((resource->object.flags & WL_OBJECT_FLAG_INERT) &&
+		/* inert resources dispatch only destructors */
+		if ((object->flags & WL_OBJECT_FLAG_INERT) &&
 		    !wl_message_is_destructor(message)) {
 			/* Let user know why the request "vanished" */
 			wl_log("Skipping non-destructor action on inert resource\n");
@@ -359,13 +367,25 @@ wl_client_connection_data(int fd, uint32_t mask, void *data)
 			continue;
 		}
 
-		if ((resource_flags & WL_MAP_ENTRY_LEGACY) ||
-		    resource->dispatcher == NULL) {
-			wl_closure_invoke(closure, WL_CLOSURE_INVOKE_SERVER,
-					  object, opcode, client);
+		if (resource) {
+			if ((resource_flags & WL_MAP_ENTRY_LEGACY) ||
+			     resource->dispatcher == NULL) {
+				wl_closure_invoke(closure, WL_CLOSURE_INVOKE_SERVER,
+						  object, opcode, client);
+			} else {
+				wl_closure_dispatch(closure, resource->dispatcher,
+						    object, opcode);
+			}
 		} else {
-			wl_closure_dispatch(closure, resource->dispatcher,
-					    object, opcode);
+		/* we are here, but do not have resource => this is a destructor
+		 * of inherently inert object. Just set delete_id- destructor is
+		 * not set anyway */
+			assert(object->flags & WL_OBJECT_FLAG_INERT_INHERENTLY);
+
+			client_delete_id(client, object->id);
+
+			/* inherently inert objects are allocated dynamicaly */
+			free(object);
 		}
 
 		wl_closure_destroy(closure);
@@ -555,9 +575,6 @@ destroy_resource(void *element, void *data)
 	struct wl_client *client;
 	uint32_t flags;
 
-	if (resource == WL_ZOMBIE_OBJECT)
-		return;
-
 	client = resource->client;
 
 	wl_signal_emit(&resource->destroy_signal, resource);
@@ -577,15 +594,9 @@ destroy_resource_for_object(void *element, void *data)
 	destroy_resource(container_of(element, struct wl_resource, object), data);
 }
 
-WL_EXPORT void
-wl_resource_destroy(struct wl_resource *resource)
+static void
+client_delete_id(struct wl_client *client, uint32_t id)
 {
-	struct wl_client *client = resource->client;
-	uint32_t id;
-
-	id = resource->object.id;
-	destroy_resource(resource, NULL);
-
 	if (id < WL_SERVER_ID_START) {
 		if (client->display_resource) {
 			wl_resource_queue_event(client->display_resource,
@@ -595,6 +606,18 @@ wl_resource_destroy(struct wl_resource *resource)
 	} else {
 		wl_map_remove(&client->objects, id);
 	}
+}
+
+WL_EXPORT void
+wl_resource_destroy(struct wl_resource *resource)
+{
+	struct wl_client *client = resource->client;
+	uint32_t id;
+
+	id = resource->object.id;
+	destroy_resource(resource, NULL);
+
+	client_delete_id(client, id);
 }
 
 WL_EXPORT uint32_t

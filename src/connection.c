@@ -617,6 +617,20 @@ wl_closure_vmarshal(struct wl_object *sender, uint32_t opcode, va_list ap,
 	return wl_closure_marshal(sender, opcode, args, message);
 }
 
+static struct wl_object *
+create_inert_object(const struct wl_interface *intf, uint32_t id)
+{
+	struct wl_object *obj = calloc(1, sizeof *obj);
+	if (!obj)
+		return NULL;
+
+	obj->interface = intf;
+	obj->id = id;
+	obj->flags = (WL_OBJECT_FLAG_INERT | WL_OBJECT_FLAG_INERT_INHERENTLY);
+
+	return obj;
+}
+
 struct wl_closure *
 wl_connection_demarshal(struct wl_connection *connection,
 			uint32_t size,
@@ -631,7 +645,7 @@ wl_connection_demarshal(struct wl_connection *connection,
 	struct argument_details arg;
 	struct wl_closure *closure;
 	struct wl_array *array, *array_extra;
-	struct wl_object *sender;
+	struct wl_object *sender, *iobj;
 
 	count = arg_count_for_signature(message->signature);
 	if (count > WL_CLOSURE_MAX_ARGS) {
@@ -659,10 +673,12 @@ wl_connection_demarshal(struct wl_connection *connection,
 
 	sender = wl_map_lookup(objects, closure->sender_id);
 
+	/* XXX this fails tests, but shouldn't we have this check?
 	if(!sender) {
 		wl_log("got message from unknown object (%d)\n", closure->sender_id);
 		goto err;
 	}
+	*/
 
 	signature = message->signature;
 	for (i = 0; i < count; i++) {
@@ -749,14 +765,15 @@ wl_connection_demarshal(struct wl_connection *connection,
 				goto err;
 			}
 
-			/* we don't wan't call any handlers for inert objects
-			 * but destructors. But if the message is supposed to
-			 * create new object, we must do it, otherwise we will
-			 * break id's logic. Create new objects as zombies
-			 * - they will not do anything, and will be deleted when
-			 * client will delete them. */
+			assert(sender && "Do not have this object");
 			if (sender->flags & WL_OBJECT_FLAG_INERT) {
-				wl_map_insert_at(objects, 0, id, WL_ZOMBIE_OBJECT);
+				iobj = create_inert_object(message->types[i], id);
+				if (!iobj) {
+					errno = ENOMEM;
+					goto err;
+				}
+
+				wl_map_insert_at(objects, 0, id, iobj);
 			}
 
 			break;

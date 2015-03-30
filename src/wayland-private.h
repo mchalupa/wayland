@@ -43,9 +43,20 @@
 #define WL_CLOSURE_MAX_ARGS 20
 
 enum wl_object_flags {
-	WL_OBJECT_FLAG_DESTROYED  = 1 << 0,
-	WL_OBJECT_FLAG_ID_DELETED = 1 << 1,
-	WL_OBJECT_FLAG_INERT      = 1 << 2
+	/* wl_object has been destroy by a destroy function, but
+	 * lives in references of events/requests */
+	WL_OBJECT_FLAG_DESTROYED	= 1 << 0,
+
+	/* client got delete_id event for this object */
+	WL_OBJECT_FLAG_ID_DELETED	= 1 << 1,
+
+	/* client created this object, but server do not has a
+	 * counter part anymore. This object does not dispatch
+	 * anything but destructors */
+	WL_OBJECT_FLAG_INERT		= 1 << 2,
+
+	/* object is created from inert object */
+	WL_OBJECT_FLAG_INERT_INHERENTLY	= 1 << 3
 };
 
 struct wl_object {
