@@ -1038,7 +1038,8 @@ socket_data(int fd, uint32_t mask, void *data)
 		wl_log("failed to accept: %m\n");
 	else
 		if (!wl_client_create(display, client_fd))
-			close(client_fd);
+			if(close(client_fd) == -1)
+				perror("Failed closing client fd");
 
 	return 1;
 }

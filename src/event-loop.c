@@ -116,7 +116,8 @@ add_source(struct wl_event_loop *loop,
 	ep.data.ptr = source;
 
 	if (epoll_ctl(loop->epoll_fd, EPOLL_CTL_ADD, source->fd, &ep) < 0) {
-		close(source->fd);
+		if(close(source->fd) == -1)
+			perror("Closing source->fd failed");
 		free(source);
 		return NULL;
 	}
@@ -321,7 +322,8 @@ wl_event_source_remove(struct wl_event_source *source)
 	 * isn't enough in case we've dup'ed the fd. */
 	if (source->fd >= 0) {
 		epoll_ctl(loop->epoll_fd, EPOLL_CTL_DEL, source->fd, NULL);
-		close(source->fd);
+		if(close(source->fd) == -1)
+			perror("Closing source->fd failed");
 		source->fd = -1;
 	}
 

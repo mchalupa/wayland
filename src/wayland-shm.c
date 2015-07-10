@@ -253,7 +253,9 @@ shm_create_pool(struct wl_client *client, struct wl_resource *resource,
 				       "failed mmap fd %d", fd);
 		goto err_close;
 	}
-	close(fd);
+
+	if (close(fd) == -1)
+		perror("Failed closing fd");
 
 	pool->resource =
 		wl_resource_create(client, &wl_shm_pool_interface, 1, id);
@@ -271,7 +273,8 @@ shm_create_pool(struct wl_client *client, struct wl_resource *resource,
 	return;
 
 err_close:
-	close(fd);
+	if(close(fd) == -1)
+		perror("Failed closing fd");
 err_free:
 	free(pool);
 }

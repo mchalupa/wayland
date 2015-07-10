@@ -188,7 +188,9 @@ close_fds(struct wl_buffer *buffer, int max)
 	if (max > 0 && max < count)
 		count = max;
 	for (i = 0; i < count; i++)
-		close(fds[i]);
+		if(close(fds[i]) == -1)
+			perror("Closing sent fd");
+
 	buffer->tail += size;
 }
 
