@@ -223,6 +223,16 @@ wl_event_queue_init(struct wl_event_queue *queue, struct wl_display *display)
 }
 
 static void
+proxy_unref(struct wl_proxy *proxy)
+{
+	--proxy->refcount;
+	assert(proxy->refcount >= 0 && "negative refcount");
+
+	if (!proxy->refcount)
+		free(proxy);
+}
+
+static void
 decrease_closure_args_refcount(struct wl_closure *closure)
 {
 	const char *signature;
@@ -242,9 +252,7 @@ decrease_closure_args_refcount(struct wl_closure *closure)
 				if (proxy->flags & WL_PROXY_FLAG_DESTROYED)
 					closure->args[i].o = NULL;
 
-				proxy->refcount--;
-				if (!proxy->refcount)
-					free(proxy);
+				proxy_unref(proxy);
 			}
 			break;
 		default:
@@ -270,7 +278,10 @@ wl_event_queue_release(struct wl_event_queue *queue)
 		proxy = closure->proxy;
 		proxy_destroyed = !!(proxy->flags & WL_PROXY_FLAG_DESTROYED);
 
-		proxy->refcount--;
+		--proxy->refcount;
+
+		/* refcount must not be 0 if the proxy is not destroyed */
+		assert(proxy->refcount > 0 || proxy_destroyed);
 		if (proxy_destroyed && !proxy->refcount)
 			free(proxy);
 
@@ -416,10 +427,7 @@ proxy_destroy(struct wl_proxy *proxy)
 
 
 	proxy->flags |= WL_PROXY_FLAG_DESTROYED;
-
-	proxy->refcount--;
-	if (!proxy->refcount)
-		free(proxy);
+	proxy_unref(proxy);
 }
 
 /** Destroy a proxy object
@@ -1286,11 +1294,8 @@ dispatch_event(struct wl_display *display, struct wl_event_queue *queue)
 	proxy = closure->proxy;
 	proxy_destroyed = !!(proxy->flags & WL_PROXY_FLAG_DESTROYED);
 
-	proxy->refcount--;
+	proxy_unref(proxy);
 	if (proxy_destroyed) {
-		if (!proxy->refcount)
-			free(proxy);
-
 		wl_closure_destroy(closure);
 		return;
 	}
