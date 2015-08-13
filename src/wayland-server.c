@@ -253,6 +253,7 @@ wl_client_connection_data(int fd, uint32_t mask, void *data)
 	if (mask & WL_EVENT_WRITABLE) {
 		len = wl_connection_flush(connection);
 		if (len < 0 && errno != EAGAIN) {
+			perror("flushing connection failed");
 			wl_client_destroy(client);
 			return 1;
 		} else if (len >= 0) {
@@ -265,6 +266,7 @@ wl_client_connection_data(int fd, uint32_t mask, void *data)
 	if (mask & WL_EVENT_READABLE) {
 		len = wl_connection_read(connection);
 		if (len == 0 || (len < 0 && errno != EAGAIN)) {
+			perror("reading connection failed");
 			wl_client_destroy(client);
 			return 1;
 		}
@@ -1018,6 +1020,7 @@ wl_display_flush_clients(struct wl_display *display)
 						  WL_EVENT_WRITABLE |
 						  WL_EVENT_READABLE);
 		} else if (ret < 0) {
+			perror("flushing client failed");
 			wl_client_destroy(client);
 		}
 	}
