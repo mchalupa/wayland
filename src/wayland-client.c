@@ -1294,11 +1294,20 @@ dispatch_event(struct wl_display *display, struct wl_event_queue *queue)
 	proxy = closure->proxy;
 	proxy_destroyed = !!(proxy->flags & WL_PROXY_FLAG_DESTROYED);
 
+	/* it's gonna be destroyed */
+	_Bool proxy_freed = proxy->refcount == 1;
+	assert((!proxy_freed || proxy_destroyed)
+		&& "Proxy is gonna be freed before is has destroy flag");
+
 	proxy_unref(proxy);
 	if (proxy_destroyed) {
 		wl_closure_destroy(closure);
 		return;
 	}
+
+	/* we should have returned before this assert if the
+	 * proxy was freed */
+	assert(!proxy_freed && "Using proxy after freeing");
 
 	pthread_mutex_unlock(&display->mutex);
 
