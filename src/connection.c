@@ -1114,6 +1114,11 @@ serialize_closure(struct wl_closure *closure, uint32_t *buffer,
 
 	size = (p - buffer) * sizeof *p;
 
+	if (size % 4)
+		wl_abort("Size of message is not aligned");
+	if (size < 8)
+		wl_abort("Size of message must always be greater that 8");
+
 	buffer[0] = closure->sender_id;
 	buffer[1] = size << 16 | (closure->opcode & 0x0000ffff);
 
